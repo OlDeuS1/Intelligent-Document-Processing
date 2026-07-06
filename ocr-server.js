@@ -19,9 +19,7 @@ app.post('/ocr-pdf', async (req, res) => {
     let pageNum = 1;
 
     for await (const image of await pdf('temp.pdf', { scale: 3 })) {
-      const { data: { text } } = await Tesseract.recognize(imageBuffer, 'eng+tha', {
-  tessedit_pageseg_mode: '4'
-});
+      const { data: { text } } = await Tesseract.recognize(image, 'eng+tha');
       fullText += `--- Page ${pageNum++} ---\n${fixThaiText(text)}\n\n`;
     }
 
