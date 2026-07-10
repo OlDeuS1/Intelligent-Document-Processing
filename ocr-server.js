@@ -5,6 +5,7 @@ const fs = require('fs');
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
+const port = process.env.PORT || 3001;
 
 app.post('/ocr-pdf', async (req, res) => {
   try {
@@ -30,7 +31,7 @@ app.post('/ocr-pdf', async (req, res) => {
   }
 });
 
-app.listen(3001, () => console.log('OCR server ready at http://localhost:3001'));
+app.listen(port, () => console.log(`OCR server ready at http://localhost:${port}`));
 
 function fixThaiText(text) {
   return text
