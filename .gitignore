@@ -1,9 +1,9 @@
 # Dependencies
 node_modules/
+.venv*/
 jspm_packages/
 bower_components/
 web_modules/
-package-lock.json
 yarn.lock
 
 # Package manager caches
@@ -104,3 +104,17 @@ output/
 tha.traineddata
 eng.traineddata
 *.tgz
+
+# Local documents, experiments and design drafts
+/test pdf/
+/archive/
+/docs/
+/scripts/
+/project.md
+/sql command.txt
+/database/*
+!/database/schema.sql
+!/database/README.md
+/n8n/*
+!/n8n/typhoon-document-workflow-before-benchmarks.json
+!/n8n/README.md
