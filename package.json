@@ -1,21 +1,18 @@
 {
   "name": "ocr-service",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Typhoon OCR service for the n8n document processing workflow",
+  "main": "ocr-service/ocr-server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node ocr-service/ocr-server.js",
+    "test": "node --test ocr-service/*.test.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "canvas": "^3.2.3",
     "express": "^5.2.1",
-    "multer": "^2.2.0",
-    "pdf-to-img": "^6.2.0",
-    "pdf2pic": "^3.2.0",
-    "tesseract.js": "^7.0.0"
+    "multer": "^2.2.0"
   }
 }

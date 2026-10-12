@@ -1,0 +1,7 @@
+# ส่งเข้า build เฉพาะ dependency manifest และ OCR service
+**
+!Dockerfile
+!package.json
+!package-lock.json
+!ocr-service/
+!ocr-service/**
