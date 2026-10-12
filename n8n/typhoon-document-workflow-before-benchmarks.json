@@ -1,0 +1,1077 @@
+{
+  "name": "Typhoon Document Processing",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "typhoon-ocr",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -768,
+        0
+      ],
+      "id": "c8164e19-dc8d-4675-9c96-acde2d73814a",
+      "name": "Webhook",
+      "webhookId": "fd93db27-eaeb-42b3-b33e-6cff0fd0f2e4"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ocr:3001/typhoon-ocr",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "file"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -528,
+        0
+      ],
+      "id": "6ed72c37-3dfa-4b90-b873-544ce8a773e2",
+      "name": "Typhoon OCR"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=ชื่อไฟล์เอกสาร:\n{{ $('Webhook').first().binary.file.fileName || $json.filename || '' }}\n\nข้อความ OCR:\n{{ $json.text }}\n\nแยกข้อมูลเป็น JSON โดยคัดลอกค่าข้อความจาก OCR ตามภาษาต้นฉบับ\n\nกฎจำแนกประเภท (ให้ทำก่อนกฎอื่น):\n1. ถ้าชื่อไฟล์หรือหัวเอกสารมีคำว่า \"ใบวางบิล\" ให้ document_type เป็น BILLING_NOTE เสมอ, แถวเลขที่ใบแจ้งหนี้ให้ใส่ billing_note_entries และ items เป็น []\n2. \"ใบเสนอราคา\" = QUOTATION\n3. \"ใบเสร็จรับเงิน\" หรือ \"ใบเสร็จ\" = RECEIPT\n4. \"ใบแจ้งหนี้\" = INVOICE\nชื่อไฟล์มีความสำคัญกว่าข้อความ OCR ที่อ่านหัวเอกสารผิด\n\nกฎสำคัญ:\n- ห้ามแปลภาษา ห้ามถอดเสียงไทยเป็นอังกฤษ และห้ามแทนชื่อจริงด้วยคำทั่วไป\n- vendor_info.name, vendor_info.address, customer_info.name, customer_info.address, items[].description, items[].unit และ amount_text ต้องเป็นข้อความภาษาไทยตาม OCR ถ้าต้นฉบับเป็นภาษาไทย\n- ตัวอย่าง: OCR ว่า \"บริษัทห้าม้าโอสถจำกัด\" ต้องตอบ \"บริษัทห้าม้าโอสถจำกัด\" ห้ามตอบ \"Company Name\"\n- ตัวอย่าง: OCR ว่า \"ล้างแอร์ติดผนัง\" ต้องตอบ \"ล้างแอร์ติดผนัง\" ห้ามตอบ \"Wall-mounted air conditioning cleaning\"\n- คำอังกฤษที่เป็นหัวตาราง เช่น Customer, Description, Unit, Total ไม่ใช่ค่าที่ให้นำมาแทนข้อมูลภาษาไทย\n- แก้ได้เฉพาะคำผิดจาก OCR ที่เห็นชัด ห้ามสร้างข้อมูลที่ไม่มี ถ้าไม่พบให้ใช้ null หรือ []\n\nประเภทเอกสารใช้ QUOTATION, INVOICE, BILLING_NOTE หรือ RECEIPT\nวันที่ต้องเป็น string รูปแบบ YYYY-MM-DD เท่านั้น ปีไทย 2 หลัก เช่น 68 หมายถึง พ.ศ. 2568 หรือ ค.ศ. 2025\nผู้ออกเอกสารอยู่ส่วนบนสุด ส่วนลูกค้าอยู่หลังคำว่า Customer, Custome หรือลูกค้า\nชื่อผู้ลงนามท้ายเอกสารไม่ใช่ชื่อผู้ออกเอกสารหรือลูกค้า\nต้องดึงทุกรายการที่มีเลขลำดับ แม้คำอธิบายจะต่อหลายบรรทัด และตรวจยอดต่อแถว\n\n{\n  \"document_type\": null,\n  \"vendor_info\": {\n    \"name\": null,\n    \"address\": null,\n    \"phone\": null\n  },\n  \"customer_info\": {\n    \"name\": null,\n    \"address\": null,\n    \"tax_id\": null,\n    \"branch_code\": null,\n    \"phone\": null\n  },\n  \"document_number\": null,\n  \"issue_date\": null,\n  \"items\": [\n    {\n      \"line_number\": 1,\n      \"description\": null,\n      \"quantity\": null,\n      \"unit\": null,\n      \"goods_unit_price\": null,\n      \"labor_unit_price\": null,\n      \"line_total\": null\n    }\n  ],\n  \"total_amount\": null,\n  \"amount_text\": null,\n  \"billing_note_entries\": []\n}\n\nรูปแบบรายการของใบวางบิลต้องใช้ key ตามนี้เท่านั้น:\n\"items\": [],\n\"billing_note_entries\": [\n  {\n    \"line_number\": 1,\n    \"invoice_number\": \"เลขที่เอกสาร/ใบแจ้งหนี้\",\n    \"invoice_date\": \"YYYY-MM-DD\",\n    \"purchase_order_contract_no\": \"เลขที่ใบสั่งซื้อหรือเลขที่สัญญา\",\n    \"amount\": 0\n  }\n]\nสำหรับใบวางบิล invoice_number มาจากคอลัมน์ \"เลขที่เอกสาร\", purchase_order_contract_no มาจากคอลัมน์ \"เลขที่ใบสั่งซื้อ/เลขที่สัญญา\" และ amount มาจากคอลัมน์ \"จำนวนเงิน(บาท)\"\nถ้าไม่ใช่ใบวางบิล billing_note_entries ต้องเป็น []\nตอบเป็น JSON เท่านั้น ไม่ต้องมี markdown หรือคำอธิบาย",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -256,
+        0
+      ],
+      "id": "56592746-04b4-4ff1-a38e-836c4fcbb454",
+      "name": "AI Agent - Structure JSON"
+    },
+    {
+      "parameters": {
+        "model": "scb10x/llama3.1-typhoon2-8b-instruct:latest",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -256,
+        240
+      ],
+      "id": "9fb71014-c962-4c82-bc46-f2f86e4f4ae2",
+      "name": "Typhoon2 8B - JSON Model"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"additionalProperties\": false,\n  \"required\": [\n    \"document_type\",\n    \"vendor_info\",\n    \"customer_info\",\n    \"document_number\",\n    \"issue_date\",\n    \"items\",\n    \"total_amount\",\n    \"amount_text\",\n    \"billing_note_entries\"\n  ],\n  \"properties\": {\n    \"document_type\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"QUOTATION\",\n        \"INVOICE\",\n        \"BILLING_NOTE\",\n        \"RECEIPT\"\n      ]\n    },\n    \"vendor_info\": {\n      \"type\": \"object\",\n      \"additionalProperties\": false,\n      \"required\": [\n        \"name\",\n        \"address\",\n        \"phone\"\n      ],\n      \"properties\": {\n        \"name\": {\n          \"type\": [\n            \"string\",\n            \"null\"\n          ]\n        },\n        \"address\": {\n          \"type\": [\n            \"string\",\n            \"null\"\n          ]\n        },\n        \"phone\": {\n          \"type\": [\n            \"string\",\n            \"null\"\n          ]\n        }\n      }\n    },\n    \"customer_info\": {\n      \"type\": \"object\",\n      \"additionalProperties\": false,\n      \"required\": [\n        \"name\",\n        \"address\",\n        \"tax_id\",\n        \"branch_code\",\n        \"phone\"\n      ],\n      \"properties\": {\n        \"name\": {\n          \"type\": [\n            \"string\",\n            \"null\"\n          ]\n        },\n        \"address\": {\n          \"type\": [\n            \"string\",\n            \"null\"\n          ]\n        },\n        \"tax_id\": {\n          \"type\": [\n            \"string\",\n            \"null\"\n          ]\n        },\n        \"branch_code\": {\n          \"type\": [\n            \"string\",\n            \"null\"\n          ]\n        },\n        \"phone\": {\n          \"type\": [\n            \"string\",\n            \"null\"\n          ]\n        }\n      }\n    },\n    \"document_number\": {\n      \"type\": [\n        \"string\",\n        \"null\"\n      ]\n    },\n    \"issue_date\": {\n      \"type\": [\n        \"string\",\n        \"null\"\n      ]\n    },\n    \"items\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"additionalProperties\": false,\n        \"required\": [\n          \"line_number\",\n          \"description\",\n          \"quantity\",\n          \"unit\",\n          \"goods_unit_price\",\n          \"labor_unit_price\",\n          \"line_total\"\n        ],\n        \"properties\": {\n          \"line_number\": {\n            \"type\": \"integer\"\n          },\n          \"description\": {\n            \"type\": [\n              \"string\",\n              \"null\"\n            ]\n          },\n          \"quantity\": {\n            \"type\": [\n              \"number\",\n              \"null\"\n            ]\n          },\n          \"unit\": {\n            \"type\": [\n              \"string\",\n              \"null\"\n            ]\n          },\n          \"goods_unit_price\": {\n            \"type\": [\n              \"number\",\n              \"null\"\n            ]\n          },\n          \"labor_unit_price\": {\n            \"type\": [\n              \"number\",\n              \"null\"\n            ]\n          },\n          \"line_total\": {\n            \"type\": [\n              \"number\",\n              \"null\"\n            ]\n          }\n        }\n      }\n    },\n    \"total_amount\": {\n      \"type\": [\n        \"number\",\n        \"null\"\n      ]\n    },\n    \"amount_text\": {\n      \"type\": [\n        \"string\",\n        \"null\"\n      ]\n    },\n    \"billing_note_entries\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"additionalProperties\": false,\n        \"required\": [\n          \"line_number\",\n          \"invoice_number\",\n          \"invoice_date\",\n          \"purchase_order_contract_no\",\n          \"amount\"\n        ],\n        \"properties\": {\n          \"line_number\": {\n            \"type\": \"integer\"\n          },\n          \"invoice_number\": {\n            \"type\": [\n              \"string\",\n              \"null\"\n            ]\n          },\n          \"invoice_date\": {\n            \"type\": [\n              \"string\",\n              \"null\"\n            ]\n          },\n          \"purchase_order_contract_no\": {\n            \"type\": [\n              \"string\",\n              \"null\"\n            ]\n          },\n          \"amount\": {\n            \"type\": [\n              \"number\",\n              \"null\"\n            ]\n          }\n        }\n      }\n    }\n  }\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -48,
+        240
+      ],
+      "id": "151ceecf-2cca-49cd-beb7-a9bbadd98d4d",
+      "name": "Document JSON Schema"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "date-normalized",
+              "name": "normalized_issue_date",
+              "value": "={{ (() => { const value = $json.output.issue_date; if (!value) return null; if (/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(String(value))) return value; const parts = String(value).split(/[-/]/).map(Number); if (parts.length !== 3 || parts.some(Number.isNaN)) return null; const day = parts[0]; const month = parts[1]; const rawYear = parts[2]; const year = rawYear < 100 ? rawYear + 1957 : (rawYear > 2400 ? rawYear - 543 : rawYear); return String(year) + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0'); })() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        0
+      ],
+      "id": "1b5a7c5d-1f01-4c51-9001-000000000001",
+      "name": "Normalize Document Date"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "source_files",
+          "mode": "list",
+          "cachedResultName": "source_files"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "original_filename": "={{ $('Webhook').first().binary.file.fileName || 'unknown' }}",
+            "mime_type": "={{ $('Webhook').first().binary.file.mimeType || null }}",
+            "page_count": "={{ $('Typhoon OCR').first().json.page_count || null }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "source_file_id",
+              "displayName": "source_file_id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "original_filename",
+              "displayName": "original_filename",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "mime_type",
+              "displayName": "mime_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "page_count",
+              "displayName": "page_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "outputColumns": [
+            "source_file_id"
+          ]
+        },
+        "operation": "insert"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        480,
+        0
+      ],
+      "id": "1b5a7c5d-1f01-4c51-9001-000000000002",
+      "name": "Insert Source File"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "source_file_id": "={{ $json.source_file_id }}",
+            "document_type": "={{ $('Fix Billing Note Rows').first().json.output.document_type }}",
+            "document_number": "={{ $('Fix Billing Note Rows').first().json.output.document_number }}",
+            "issue_date": "={{ $('Normalize Document Date').first().json.normalized_issue_date }}",
+            "issuer_name": "={{ $('Fix Billing Note Rows').first().json.output.vendor_info.name }}",
+            "issuer_address": "={{ $('Fix Billing Note Rows').first().json.output.vendor_info.address }}",
+            "issuer_phone": "={{ $('Fix Billing Note Rows').first().json.output.vendor_info.phone }}",
+            "customer_name": "={{ $('Fix Billing Note Rows').first().json.output.customer_info.name }}",
+            "customer_tax_id": "={{ $('Fix Billing Note Rows').first().json.output.customer_info.tax_id }}",
+            "customer_branch_code": "={{ $('Fix Billing Note Rows').first().json.output.customer_info.branch_code }}",
+            "customer_address": "={{ $('Fix Billing Note Rows').first().json.output.customer_info.address }}",
+            "customer_phone": "={{ $('Fix Billing Note Rows').first().json.output.customer_info.phone }}",
+            "total_amount": "={{ $('Fix Billing Note Rows').first().json.output.total_amount }}",
+            "amount_text": "={{ $('Fix Billing Note Rows').first().json.output.amount_text }}",
+            "processing_status": "={{ $('Fix Billing Note Rows').first().json.output.processing_status }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "document_id",
+              "displayName": "document_id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "source_file_id",
+              "displayName": "source_file_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "document_type",
+              "displayName": "document_type",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "document_number",
+              "displayName": "document_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "issue_date",
+              "displayName": "issue_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "issuer_name",
+              "displayName": "issuer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "issuer_address",
+              "displayName": "issuer_address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "issuer_phone",
+              "displayName": "issuer_phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_tax_id",
+              "displayName": "customer_tax_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_branch_code",
+              "displayName": "customer_branch_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_address",
+              "displayName": "customer_address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_phone",
+              "displayName": "customer_phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total_amount",
+              "displayName": "total_amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "amount_text",
+              "displayName": "amount_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "processing_status",
+              "displayName": "processing_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "outputColumns": [
+            "document_id",
+            "source_file_id",
+            "document_type",
+            "document_number",
+            "processing_status"
+          ]
+        },
+        "operation": "insert"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        720,
+        0
+      ],
+      "id": "1b5a7c5d-1f01-4c51-9001-000000000003",
+      "name": "Insert Document"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is-billing-condition",
+              "leftValue": "={{ $json.document_type }}",
+              "rightValue": "BILLING_NOTE",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        0
+      ],
+      "id": "1b5a7c5d-1f01-4c51-9001-000000000004",
+      "name": "Is Billing Note?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "items-document-id",
+              "name": "document_id",
+              "value": "={{ $json.document_id }}",
+              "type": "string"
+            },
+            {
+              "id": "items-array",
+              "name": "items",
+              "value": "={{ $('Fix Billing Note Rows').first().json.output.items || [] }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1200,
+        -160
+      ],
+      "id": "1b5a7c5d-1f01-4c51-9001-000000000005",
+      "name": "Prepare Line Items"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "items",
+        "include": "allOtherFields",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        -160
+      ],
+      "id": "1b5a7c5d-1f01-4c51-9001-000000000006",
+      "name": "Split Line Items"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "document_line_items",
+          "mode": "list",
+          "cachedResultName": "document_line_items"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "document_id": "={{ $json.document_id }}",
+            "line_number": "={{ $json.items.line_number }}",
+            "description": "={{ $json.items.description }}",
+            "quantity": "={{ $json.items.quantity }}",
+            "unit_name": "={{ $json.items.unit }}",
+            "goods_unit_price": "={{ $json.items.goods_unit_price }}",
+            "labor_unit_price": "={{ $json.items.labor_unit_price }}",
+            "line_total": "={{ $json.items.line_total }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "document_id",
+              "displayName": "document_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "line_number",
+              "displayName": "line_number",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "quantity",
+              "displayName": "quantity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "unit_name",
+              "displayName": "unit_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "goods_unit_price",
+              "displayName": "goods_unit_price",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "labor_unit_price",
+              "displayName": "labor_unit_price",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "line_total",
+              "displayName": "line_total",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "outputColumns": [
+            "document_id",
+            "line_number"
+          ]
+        },
+        "operation": "insert"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1680,
+        -160
+      ],
+      "id": "1b5a7c5d-1f01-4c51-9001-000000000007",
+      "name": "Insert Line Items"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "billing-document-id",
+              "name": "document_id",
+              "value": "={{ $json.document_id }}",
+              "type": "string"
+            },
+            {
+              "id": "billing-array",
+              "name": "billing_entries",
+              "value": "={{ $('Fix Billing Note Rows').first().json.output.billing_note_entries || [] }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1200,
+        160
+      ],
+      "id": "1b5a7c5d-1f01-4c51-9001-000000000008",
+      "name": "Prepare Billing Entries"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "billing_entries",
+        "include": "allOtherFields",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        160
+      ],
+      "id": "1b5a7c5d-1f01-4c51-9001-000000000009",
+      "name": "Split Billing Entries"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "billing_note_entries",
+          "mode": "list",
+          "cachedResultName": "billing_note_entries"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "document_id": "={{ $json.document_id }}",
+            "line_number": "={{ $json.billing_entries.line_number }}",
+            "invoice_number": "={{ $json.billing_entries.invoice_number }}",
+            "invoice_date": "={{ (() => { const value = $json.billing_entries.invoice_date; if (!value) return null; if (/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(String(value))) return value; const parts = String(value).split(/[-/]/).map(Number); if (parts.length !== 3 || parts.some(Number.isNaN)) return null; const year = parts[2] < 100 ? parts[2] + 1957 : (parts[2] > 2400 ? parts[2] - 543 : parts[2]); return String(year) + '-' + String(parts[1]).padStart(2, '0') + '-' + String(parts[0]).padStart(2, '0'); })() }}",
+            "purchase_order_contract_no": "={{ $json.billing_entries.purchase_order_contract_no }}",
+            "amount": "={{ $json.billing_entries.amount }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "document_id",
+              "displayName": "document_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "line_number",
+              "displayName": "line_number",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "invoice_number",
+              "displayName": "invoice_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "invoice_date",
+              "displayName": "invoice_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "purchase_order_contract_no",
+              "displayName": "purchase_order_contract_no",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "amount",
+              "displayName": "amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "outputColumns": [
+            "document_id",
+            "line_number"
+          ]
+        },
+        "operation": "insert"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1680,
+        160
+      ],
+      "id": "1b5a7c5d-1f01-4c51-9001-000000000010",
+      "name": "Insert Billing Entries"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "saved_rows",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1920,
+        0
+      ],
+      "id": "1b5a7c5d-1f01-4c51-9001-000000000011",
+      "name": "Count Saved Rows"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "result-document-id",
+              "name": "document_id",
+              "value": "={{ $('Insert Document').first().json.document_id }}",
+              "type": "string"
+            },
+            {
+              "id": "result-file-id",
+              "name": "source_file_id",
+              "value": "={{ $('Insert Source File').first().json.source_file_id }}",
+              "type": "string"
+            },
+            {
+              "id": "result-document-type",
+              "name": "document_type",
+              "value": "={{ $('Insert Document').first().json.document_type }}",
+              "type": "string"
+            },
+            {
+              "id": "result-status",
+              "name": "processing_status",
+              "value": "={{ $('Insert Document').first().json.processing_status }}",
+              "type": "string"
+            },
+            {
+              "id": "result-rows",
+              "name": "rows_saved",
+              "value": "={{ $json.saved_rows.length }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2160,
+        0
+      ],
+      "id": "1b5a7c5d-1f01-4c51-9001-000000000012",
+      "name": "Return Saved Document"
+    },
+    {
+      "parameters": {
+        "jsCode": "// AI Agent เป็นตัวจัดข้อมูลหลัก ส่วนโค้ดนี้ตรวจค่าที่ชัดเจนจาก OCR ก่อนบันทึก\nconst document = { ...$json.output };\nconst ocrText = $('Typhoon OCR').first().json.text || '';\nconst compactOcr = ocrText.replace(/\\s+/g, '');\n\n// หัวเอกสารจริงสำคัญกว่าชื่อไฟล์ เพราะชื่อไฟล์อาจตั้งผิด\nlet detectedType = null;\nif (compactOcr.includes('ใบเสร็จรับเงิน')) detectedType = 'RECEIPT';\nelse if (compactOcr.includes('ใบวางบิล')) detectedType = 'BILLING_NOTE';\nelse if (compactOcr.includes('ใบแจ้งหนี้') || compactOcr.includes('ใบแจ้งหนี')) detectedType = 'INVOICE';\nelse if (compactOcr.includes('ใบเสนอราคา')) detectedType = 'QUOTATION';\nif (detectedType) document.document_type = detectedType;\n\nconst isBillingNote = document.document_type === 'BILLING_NOTE';\n\n// แปลงวันที่ไทย เช่น 15-6-69 เป็น 2026-06-15\nfunction normalizeThaiDate(value) {\n  if (!value) return null;\n  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return value;\n\n  const parts = String(value).trim().split(/[-/]/).map(Number);\n  if (parts.length !== 3 || parts.some(Number.isNaN)) return null;\n\n  const [day, month, rawYear] = parts;\n  const year = rawYear < 100\n    ? rawYear + 1957\n    : (rawYear > 2400 ? rawYear - 543 : rawYear);\n\n  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;\n}\n\n// ถ้า AI ไม่คืนรายการใบวางบิล ให้ดึงจากแถวตาราง HTML ที่ Typhoon OCR คืนมา\nif (isBillingNote) {\n  document.document_type = 'BILLING_NOTE';\n  document.items = [];\n\n  if (!Array.isArray(document.billing_note_entries) || document.billing_note_entries.length === 0) {\n    const entries = [];\n    const rowPattern = /<tr><td>\\s*(\\d+)\\s*<\\/td><td>(.*?)<\\/td><td>(.*?)<\\/td><td>(.*?)<\\/td><td>\\s*([\\d,]+)\\s*<\\/td><\\/tr>/gis;\n\n    for (const match of ocrText.matchAll(rowPattern)) {\n      const clean = (text) => text.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim();\n\n      entries.push({\n        line_number: Number(match[1]),\n        purchase_order_contract_no: clean(match[2]) || null,\n        invoice_number: clean(match[3]) || null,\n        invoice_date: normalizeThaiDate(clean(match[4])),\n        amount: Number(match[5].replace(/,/g, ''))\n      });\n    }\n\n    document.billing_note_entries = entries;\n  }\n}\n\n// ถ้า AI มองข้ามเลขเอกสาร แต่ OCR อ่านรูปแบบ IV/QT/QU/RC ได้ชัด ให้ใช้ค่านั้น\nif (!document.document_number) {\n  const documentNumber = ocrText.match(/\\b(?:IV|QT|QU|RC)[A-Z0-9-]{4,}\\b/i);\n  if (documentNumber) document.document_number = documentNumber[0].toUpperCase();\n}\n\n// ป้องกัน AI นำชื่อไฟล์หรือหัวตารางมาใช้เป็นเลขเอกสาร\nif (document.document_number && (/\\.pdf$/i.test(document.document_number) || /^(QUANTITY|DESCRIPTION|TOTAL|AMOUNT)$/i.test(document.document_number))) {\n  document.document_number = null;\n}\n\n// ถ้าช่องยอดรวมใน OCR ไม่มีตัวเลข ห้ามให้ AI คำนวณยอดขึ้นมาเอง\nconst upperOcr = ocrText.toUpperCase();\nconst totalLabelIndex = Math.max(upperOcr.lastIndexOf('AMOUNT'), upperOcr.lastIndexOf('TOTAL'));\nconst totalTail = totalLabelIndex >= 0 ? ocrText.slice(totalLabelIndex, totalLabelIndex + 160) : '';\nif (!/\\d[\\d,]*(?:\\.\\d+)?/.test(totalTail)) document.total_amount = null;\n\n// ตรวจข้อมูลจำเป็นและความสัมพันธ์ระหว่างยอดรวมกับยอดของแต่ละแถว\nconst rows = isBillingNote ? (document.billing_note_entries || []) : (document.items || []);\nconst rowTotals = rows.map((row) => isBillingNote ? row.amount : row.line_total);\nconst canCompareTotals = rows.length > 0 && rowTotals.every((value) => typeof value === 'number');\nconst calculatedTotal = canCompareTotals ? rowTotals.reduce((sum, value) => sum + value, 0) : null;\nconst totalMismatch = calculatedTotal !== null && document.total_amount !== null && Math.abs(calculatedTotal - document.total_amount) > 0.01;\nconst documentNumberMissing = !isBillingNote && !document.document_number;\n\ndocument.processing_status = (\n  documentNumberMissing ||\n  !document.issue_date ||\n  !document.vendor_info?.name ||\n  !document.customer_info?.name ||\n  document.total_amount == null ||\n  totalMismatch\n) ? 'NEEDS_REVIEW' : 'EXTRACTED';\n\nreturn [{ json: { ...$json, output: document } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        48,
+        0
+      ],
+      "id": "1b5a7c5d-1f01-4c51-9001-000000000013",
+      "name": "Fix Billing Note Rows"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Typhoon OCR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Typhoon OCR": {
+      "main": [
+        [
+          {
+            "node": "AI Agent - Structure JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent - Structure JSON": {
+      "main": [
+        [
+          {
+            "node": "Fix Billing Note Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Typhoon2 8B - JSON Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent - Structure JSON",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Document JSON Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent - Structure JSON",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Document Date": {
+      "main": [
+        [
+          {
+            "node": "Insert Source File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Source File": {
+      "main": [
+        [
+          {
+            "node": "Insert Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Document": {
+      "main": [
+        [
+          {
+            "node": "Is Billing Note?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Billing Note?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Billing Entries",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Line Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Line Items": {
+      "main": [
+        [
+          {
+            "node": "Split Line Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Line Items": {
+      "main": [
+        [
+          {
+            "node": "Insert Line Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Line Items": {
+      "main": [
+        [
+          {
+            "node": "Count Saved Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Billing Entries": {
+      "main": [
+        [
+          {
+            "node": "Split Billing Entries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Billing Entries": {
+      "main": [
+        [
+          {
+            "node": "Insert Billing Entries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Billing Entries": {
+      "main": [
+        [
+          {
+            "node": "Count Saved Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Count Saved Rows": {
+      "main": [
+        [
+          {
+            "node": "Return Saved Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fix Billing Note Rows": {
+      "main": [
+        [
+          {
+            "node": "Normalize Document Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "pinData": {},
+  "active": false,
+  "tags": []
+}
